@@ -151,6 +151,13 @@
     </div>
 
     <div class="card">
+      <h2>Fotografías del sitio</h2>
+      <input type="file" id="fotosInput" accept="image/*" multiple style="display:none" onchange="agregarFotos(this.files)">
+      <button class="btn btn-outline btn-sm no-print" type="button" onclick="document.getElementById('fotosInput').click()">+ Agregar fotos</button>
+      <div id="galeriaFotos" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;"></div>
+    </div>
+
+    <div class="card">
       <h2>Firma del responsable</h2>
       <div class="sig-final" style="grid-template-columns:1fr;max-width:340px;margin:0 auto;">
         <div>
@@ -702,6 +709,25 @@ document.addEventListener('input', function(e){
 });
 document.addEventListener('DOMContentLoaded', function(){ initAutoGrowTextareas(); });
 
+// ---------- Fotografías del sitio ----------
+function agregarFotos(files){
+  const galeria = document.getElementById('galeriaFotos');
+  Array.from(files).forEach(file=>{
+    if(!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = function(e){
+      const wrapper = document.createElement('div');
+      wrapper.style.cssText = 'position:relative;width:140px;';
+      wrapper.innerHTML = `
+        <img src="${e.target.result}" style="width:100%;height:100px;object-fit:cover;border-radius:8px;border:1px solid var(--border);display:block;">
+        <button type="button" class="no-print" onclick="this.closest('div').remove()" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:14px;line-height:1;">✕</button>`;
+      galeria.appendChild(wrapper);
+    };
+    reader.readAsDataURL(file);
+  });
+  document.getElementById('fotosInput').value = '';
+}
+
 const pads = {};
 function initSignaturePad(canvas){
   const ctx = canvas.getContext('2d');
@@ -750,19 +776,22 @@ async function construirPDFBlob(){
   document.querySelectorAll('.no-print').forEach(el=>el.style.visibility='visible');
   const imgData = canvas.toDataURL('image/png');
   const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF('p','mm','a4');
-  const pageWidth = 210, pageHeight = 297;
-  const imgWidth = pageWidth;
-  const imgHeight = canvas.height * imgWidth / canvas.width;
-  let heightLeft = imgHeight, position = 0;
-  pdf.addImage(imgData,'PNG',0,position,imgWidth,imgHeight);
-  heightLeft -= pageHeight;
-  while(heightLeft > 0){
-    position = heightLeft - imgHeight;
-    pdf.addPage();
-    pdf.addImage(imgData,'PNG',0,position,imgWidth,imgHeight);
-    heightLeft -= pageHeight;
+  // Tamaño carta (letter), todo el informe en una sola hoja
+  const pdf = new jsPDF('p','mm','letter');
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 6;
+  const maxWidth = pageWidth - margin*2;
+  const maxHeight = pageHeight - margin*2;
+  let imgWidth = maxWidth;
+  let imgHeight = canvas.height * imgWidth / canvas.width;
+  if(imgHeight > maxHeight){
+    imgHeight = maxHeight;
+    imgWidth = canvas.width * imgHeight / canvas.height;
   }
+  const x = (pageWidth - imgWidth) / 2;
+  const y = (pageHeight - imgHeight) / 2;
+  pdf.addImage(imgData,'PNG',x,y,imgWidth,imgHeight);
   return pdf.output('blob');
 }
 async function descargarPDF(){
